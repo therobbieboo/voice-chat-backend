@@ -241,31 +241,65 @@
     async function startRecording() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        
+        // Try different MIME types for better compatibility
+        let mimeType = 'audio/webm;codecs=opus';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/webm';
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            mimeType = 'audio/ogg';
+            if (!MediaRecorder.isTypeSupported(mimeType)) {
+              mimeType = 'audio/mp4';
+            }
+          }
+        }
+        
+        console.log('Using MIME type:', mimeType);
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
         audioChunks = [];
         
         mediaRecorder.ondataavailable = event => {
+          console.log('Data available:', event.data.size, 'bytes');
           audioChunks.push(event.data);
         };
         
         mediaRecorder.onstop = async () => {
-          const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+          console.log('Recording stopped, chunks:', audioChunks.length);
+          if (audioChunks.length === 0) {
+            showStatus('沒有錄到音頻，請再試一次', 'error');
+            return;
+          }
+          
+          const audioBlob = new Blob(audioChunks, { type: mimeType });
+          console.log('Blob size:', audioBlob.size, 'bytes');
+          
           const reader = new FileReader();
           reader.onload = () => {
             const base64 = reader.result.split(',')[1];
+            console.log('Base64 length:', base64.length);
             sendAudio(base64);
+          };
+          reader.onerror = () => {
+            showStatus('音頻處理失敗', 'error');
           };
           reader.readAsDataURL(audioBlob);
           
           stream.getTracks().forEach(track => track.stop());
         };
         
-        mediaRecorder.start();
+        mediaRecorder.onerror = (e) => {
+          console.error('MediaRecorder error:', e);
+          showStatus('錄音失敗: ' + e.error?.message, 'error');
+        };
+        
+        mediaRecorder.start(1000); // Collect data every second
         isRecording = true;
         document.getElementById('recordBtn').classList.add('recording');
         document.getElementById('recordBtn').textContent = '⏹';
+        showStatus('錄音中...', 'loading');
         
       } catch (error) {
+        console.error('Microphone access error:', error);
         showStatus('無法訪問麥克風: ' + error.message, 'error');
       }
     }
@@ -313,7 +347,54 @@
         return;
       }
       
+      if (!base64 || base64.length < 100) {
+        showStatus('音頻數據無效', 'error');
+        return;
+      }
+      
       showStatus('辨識中...', 'loading');
+      
+      try {
+        const response = await fetch(backendUrl + '/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            audio: base64,
+            provider: document.getElementById('provider').value
+          })
+        });
+        
+        if (!response.ok) {
+          throw new Error('Server error: ' + response.status);
+        }
+        
+        const data = await response.json();
+        
+        if (data.error) {
+          throw new Error(data.error);
+        }
+        
+        // Show transcription
+        addMessage('user', `🎤 ${data.transcription}`);
+        
+        // Show AI response
+        addMessage('ai', data.response);
+        
+        // Play audio response
+        if (data.audio) {
+          const audio = document.getElementById('responseAudio');
+          audio.src = 'data:audio/mp3;base64,' + data.audio;
+          audio.style.display = 'block';
+          audio.play().catch(() => {});
+        }
+        
+        showStatus('完成', 'success');
+        
+      } catch (error) {
+        console.error('Chat error:', error);
+        showStatus('錯誤: ' + error.message, 'error');
+      }
+    }
       
       try {
         const response = await fetch(backendUrl + '/chat', {
