@@ -117,20 +117,29 @@ app.post('/tts', async (req, res) => {
 wss.on('connection', (ws) => {
   console.log('WebSocket client connected');
   let conversationHistory = [];
+  let isProcessing = false; // Prevent concurrent calls
   
   ws.on('message', async (message) => {
+    // Skip if still processing previous message
+    if (isProcessing) {
+      console.log('Skipping message - still processing previous');
+      return;
+    }
+    
     try {
-      // Message format: { type: 'audio', data: base64Audio } or { type: 'text', text: '...' }
+      isProcessing = true;
       const msg = JSON.parse(message);
       
       if (msg.type === 'audio') {
-        // Receive audio chunk
         const audioBase64 = msg.data;
         
         // Transcribe
         const transcription = await transcribe(audioBase64, 'openai');
+        console.log('WS Transcription:', transcription);
+        
         if (!transcription || transcription.trim() === '') {
           ws.send(JSON.stringify({ type: 'transcription', text: '' }));
+          isProcessing = false;
           return;
         }
         
@@ -139,17 +148,27 @@ wss.on('connection', (ws) => {
         // Add to history and get AI response
         conversationHistory.push({ role: 'user', content: transcription });
         
+        console.log('WS Getting AI response with history length:', conversationHistory.length);
         const aiResponse = await getAIResponseWithHistory(conversationHistory);
+        console.log('WS AI Response:', aiResponse);
+        
+        if (!aiResponse || aiResponse.trim() === '') {
+          console.error('Empty AI response');
+          isProcessing = false;
+          return;
+        }
+        
         conversationHistory.push({ role: 'assistant', content: aiResponse });
         
         ws.send(JSON.stringify({ type: 'response', text: aiResponse }));
         
-        // Generate and stream TTS
+        // Generate TTS
+        console.log('WS Generating TTS...');
         const audioOutput = await textToSpeech(aiResponse, 'minimax', 'Friendly_Person');
         ws.send(JSON.stringify({ type: 'audio', data: audioOutput }));
+        console.log('WS TTS sent');
         
       } else if (msg.type === 'reset') {
-        // Reset conversation history
         conversationHistory = [];
         ws.send(JSON.stringify({ type: 'reset', status: 'ok' }));
       }
@@ -157,6 +176,8 @@ wss.on('connection', (ws) => {
     } catch (error) {
       console.error('WebSocket message error:', error.message);
       ws.send(JSON.stringify({ type: 'error', message: error.message }));
+    } finally {
+      isProcessing = false;
     }
   });
   
