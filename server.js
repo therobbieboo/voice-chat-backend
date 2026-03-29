@@ -160,7 +160,7 @@ wss.on('connection', (ws) => {
         
         conversationHistory.push({ role: 'assistant', content: aiResponse });
         
-        ws.send(JSON.stringify({ type: 'response', text: aiResponse }));
+        ws.send(JSON.stringify({ type: 'response', response: aiResponse }));
         
         // Generate TTS
         console.log('WS Generating TTS...');
