@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
   <title>語音對話 Demo</title>
   <style>
     * { box-sizing: border-box; }
@@ -192,17 +193,20 @@
   </div>
   
   <div class="settings">
-    <label>提供商：</label>
-    <select id="provider" onchange="updateVoices()">
+    <label>對話模型：</label>
+    <select id="provider">
       <option value="gemini">Gemini</option>
-      <option value="openai">OpenAI</option>
       <option value="minimax">MiniMax</option>
+      <option value="openai">OpenAI</option>
     </select>
     <label>語音：</label>
     <select id="voice">
-      <option value="alloy">Alloy</option>
-      <option value="nova">Nova</option>
-      <option value="echo">Echo</option>
+      <option value="alloy">Alloy (中性)</option>
+      <option value="nova">Nova (女性)</option>
+      <option value="echo">Echo (男性)</option>
+      <option value="fable">Fable (英式)</option>
+      <option value="onyx">Onyx (低沉男)</option>
+      <option value="shimmer">Shimmer (柔和女)</option>
     </select>
   </div>
 
