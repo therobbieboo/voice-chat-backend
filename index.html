@@ -182,9 +182,9 @@
     </div>
     
     <div class="controls">
-      <button class="record-btn" id="recordBtn" onclick="toggleRecording()">🎤</button>
-      <input type="text" class="text-input" id="textInput" placeholder="或直接輸入文字..." onkeypress="handleKeyPress(event)">
-      <button class="send-btn" id="sendBtn" onclick="sendMessage()">發送</button>
+      <button class="record-btn" id="recordBtn">🎤</button>
+      <input type="text" class="text-input" id="textInput" placeholder="或直接輸入文字...">
+      <button class="send-btn" id="sendBtn">發送</button>
     </div>
     
     <div id="status" class="status"></div>
@@ -500,6 +500,11 @@
         setTimeout(() => { el.style.display = 'none'; }, 3000);
       }
     }
+    
+    // Attach event listeners
+    document.getElementById('recordBtn').addEventListener('click', toggleRecording);
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('textInput').addEventListener('keypress', handleKeyPress);
     }); // end DOMContentLoaded
   </script>
 </body>
