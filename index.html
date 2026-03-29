@@ -206,6 +206,7 @@
   </div>
 
   <script>
+    document.addEventListener('DOMContentLoaded', function() {
     let isRecording = false;
     let mediaRecorder = null;
     let audioChunks = [];
@@ -499,6 +500,7 @@
         setTimeout(() => { el.style.display = 'none'; }, 3000);
       }
     }
+    }); // end DOMContentLoaded
   </script>
 </body>
 </html>
