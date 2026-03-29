@@ -124,9 +124,6 @@ app.post('/tts', async (req, res) => {
 // ============ Helper Functions ============
 
 async function transcribe(audioBase64, provider) {
-  // For now, we'll use a simple approach
-  // In production, you'd use Whisper API
-  
   // If it's already text (user sent text instead of audio)
   if (typeof audioBase64 === 'string' && !audioBase64.includes('=') && audioBase64.length < 1000) {
     return audioBase64;
@@ -142,7 +139,7 @@ async function transcribe(audioBase64, provider) {
   
   return new Promise((resolve, reject) => {
     const boundary = '----FormBoundary7MA4YWxkTrZu0gW';
-    const body = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.mp3"\r\nContent-Type: audio/mpeg\r\n\r\n`;
+    const body = `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n\r\n`;
     const end = `\r\n--${boundary}--\r\n`;
     
     const postData = Buffer.concat([

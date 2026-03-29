@@ -171,7 +171,7 @@
   
   <div class="card">
     <div class="api-section">
-      <input type="text" id="backendUrl" placeholder="後端 URL (如 http://localhost:3000)" value="">
+      <input type="text" id="backendUrl" placeholder="後端 URL" value="https://voice-chat-backend-production.up.railway.app">
     </div>
     <div class="api-section">
       <input type="text" id="apiKey" placeholder="OpenAI 或 MiniMax API Key">
@@ -241,7 +241,7 @@
     async function startRecording() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
         audioChunks = [];
         
         mediaRecorder.ondataavailable = event => {
