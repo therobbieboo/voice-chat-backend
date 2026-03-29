@@ -11,7 +11,8 @@ const PORT = process.env.PORT || 3000;
 // API Keys from environment
 const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY || '';
-const DIALOGUE_MODEL = process.env.DIALOGUE_MODEL || 'minimax'; // 'minimax' or 'openai'
+const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCKMrIyU6JML_ysD50w0dEO9zJKJUgcrWg';
+const DIALOGUE_MODEL = process.env.DIALOGUE_MODEL || 'minimax'; // 'minimax', 'openai', or 'gemini'
 
 // MiniMax config
 const MINIMAX_BASE_URL = 'https://api.minimax.io';
@@ -182,7 +183,9 @@ async function transcribe(audioBase64, provider) {
 }
 
 async function getAIResponse(text) {
-  if (DIALOGUE_MODEL === 'openai' && OPENAI_KEY) {
+  if (DIALOGUE_MODEL === 'gemini' && GEMINI_KEY) {
+    return getGeminiResponse(text);
+  } else if (DIALOGUE_MODEL === 'openai' && OPENAI_KEY) {
     return getOpenAIResponse(text);
   } else {
     return getMinimaxResponse(text);
@@ -229,6 +232,62 @@ async function getOpenAIResponse(text) {
           }
         } catch (e) {
           reject(new Error('Failed to parse AI response'));
+        }
+      });
+    });
+    
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
+  });
+}
+
+async function getGeminiResponse(text) {
+  const key = GEMINI_KEY;
+  if (!key) {
+    throw new Error('Gemini API key not configured');
+  }
+  
+  const postData = JSON.stringify({
+    contents: [
+      {
+        parts: [
+          { text: `你是一個友善的語音助理，請用繁體中文簡潔地回覆這個問題: ${text}` }
+        ]
+      }
+    ],
+    generationConfig: {
+      maxOutputTokens: 500,
+      temperature: 0.9
+    }
+  });
+  
+  const options = {
+    hostname: 'generativelanguage.googleapis.com',
+    path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Content-Length': Buffer.byteLength(postData)
+    }
+  };
+  
+  return new Promise((resolve, reject) => {
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) {
+            reject(new Error(parsed.error.message));
+          } else if (parsed.candidates && parsed.candidates[0]?.content?.parts[0]?.text) {
+            resolve(parsed.candidates[0].content.parts[0].text);
+          } else {
+            reject(new Error('Invalid Gemini response format'));
+          }
+        } catch (e) {
+          reject(new Error('Failed to parse Gemini response: ' + e.message));
         }
       });
     });
