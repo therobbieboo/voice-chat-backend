@@ -207,7 +207,9 @@
   </div>
 
   <script>
+    console.log('Script starting...');
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('DOM loaded, setting up...');
     let isRecording = false;
     let mediaRecorder = null;
     let audioChunks = [];
@@ -398,43 +400,6 @@
       }
     }
       
-      try {
-        const response = await fetch(backendUrl + '/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            audio: base64,
-            provider: document.getElementById('provider').value
-          })
-        });
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          showStatus(data.error, 'error');
-          return;
-        }
-        
-        // Show transcription
-        addMessage('user', `🎤 ${data.transcription}`);
-        
-        // Show AI response
-        addMessage('ai', data.response);
-        
-        // Play audio response
-        if (data.audio) {
-          const audio = document.getElementById('responseAudio');
-          audio.src = 'data:audio/mp3;base64,' + data.audio;
-          audio.style.display = 'block';
-          audio.play().catch(() => {});
-        }
-        
-        showStatus('完成', 'success');
-        
-      } catch (error) {
-        showStatus('錯誤: ' + error.message, 'error');
-      }
-    }
     
     async function chat(text, backendUrl) {
       showStatus('處理中...', 'loading');
