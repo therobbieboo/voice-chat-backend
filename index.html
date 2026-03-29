@@ -199,14 +199,23 @@
       <option value="minimax">MiniMax</option>
       <option value="openai">OpenAI</option>
     </select>
-    <label>語音：</label>
+    <label>語音輸出：</label>
+    <select id="voiceProvider" onchange="updateVoices()">
+      <option value="minimax">MiniMax (多聲音)</option>
+      <option value="openai">OpenAI (6種)</option>
+    </select>
+  </div>
+  <div class="settings" style="margin-top:8px;">
+    <label>聲音選擇：</label>
     <select id="voice">
-      <option value="alloy">Alloy (中性)</option>
-      <option value="nova">Nova (女性)</option>
-      <option value="echo">Echo (男性)</option>
-      <option value="fable">Fable (英式)</option>
-      <option value="onyx">Onyx (低沉男)</option>
-      <option value="shimmer">Shimmer (柔和女)</option>
+      <option value="Wise_Woman">Wise Woman (知性女)</option>
+      <option value="Friendly_Person">Friendly Person (友善女)</option>
+      <option value="Calm_Woman">Calm Woman (溫柔女)</option>
+      <option value="Lively_Girl">Lively Girl (活潑女)</option>
+      <option value="Deep_Voice_Man">Deep Voice Man (低沉男)</option>
+      <option value="Young_Knight">Young Knight (陽光男)</option>
+      <option value="Determined_Man">Determined Man (堅定男)</option>
+      <option value="Casual_Guy">Casual Guy (休閒男)</option>
     </select>
   </div>
 
@@ -221,19 +230,28 @@
     const minimaxVoices = ['Wise_Woman', 'Friendly_Person', 'Deep_Voice_Man', 'Calm_Woman'];
     
     function updateVoices() {
-      const provider = document.getElementById('provider').value;
+      const voiceProvider = document.getElementById('voiceProvider').value;
       const voiceSelect = document.getElementById('voice');
       
-      if (provider === 'minimax') {
-        voiceSelect.innerHTML = minimaxVoices.map(v => `<option value="${v}">${v.replace(/_/g, ' ')}</option>`).join('');
+      if (voiceProvider === 'minimax') {
+        voiceSelect.innerHTML = `
+          <option value="Wise_Woman">Wise Woman (知性女)</option>
+          <option value="Friendly_Person">Friendly Person (友善女)</option>
+          <option value="Calm_Woman">Calm Woman (溫柔女)</option>
+          <option value="Lively_Girl">Lively Girl (活潑女)</option>
+          <option value="Deep_Voice_Man">Deep Voice Man (低沉男)</option>
+          <option value="Young_Knight">Young Knight (陽光男)</option>
+          <option value="Determined_Man">Determined Man (堅定男)</option>
+          <option value="Casual_Guy">Casual Guy (休閒男)</option>
+        `;
       } else {
         voiceSelect.innerHTML = `
-          <option value="alloy">Alloy</option>
-          <option value="nova">Nova</option>
-          <option value="echo">Echo</option>
-          <option value="fable">Fable</option>
-          <option value="onyx">Onyx</option>
-          <option value="shimmer">Shimmer</option>
+          <option value="alloy">Alloy (中性)</option>
+          <option value="nova">Nova (女性)</option>
+          <option value="echo">Echo (男性)</option>
+          <option value="fable">Fable (英式)</option>
+          <option value="onyx">Onyx (低沉男)</option>
+          <option value="shimmer">Shimmer (柔和女)</option>
         `;
       }
     }
@@ -432,7 +450,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             text: data.response,
-            provider: document.getElementById('provider').value,
+            provider: document.getElementById('voiceProvider').value,
             voice: document.getElementById('voice').value
           })
         });
