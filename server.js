@@ -258,7 +258,7 @@ async function getMinimaxResponse(text) {
   
   const options = {
     hostname: 'api.minimax.io',
-    path: '/v1/messages',
+    path: '/anthropic/v1/messages',
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -278,10 +278,17 @@ async function getMinimaxResponse(text) {
           if (parsed.error) {
             reject(new Error(parsed.error.message));
           } else {
-            resolve(parsed.content[0].text);
+            // MiniMax returns content as array with possibly thinking + text blocks
+            // Find the text block
+            const textBlock = parsed.content.find(c => c.type === 'text');
+            if (textBlock) {
+              resolve(textBlock.text);
+            } else {
+              reject(new Error('No text in AI response'));
+            }
           }
         } catch (e) {
-          reject(new Error('Failed to parse AI response'));
+          reject(new Error('Failed to parse AI response: ' + e.message));
         }
       });
     });
