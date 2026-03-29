@@ -1,7 +1,7 @@
 {
   "name": "voice-chat-backend",
-  "version": "1.0.0",
-  "description": "Voice chat backend with TTS and AI",
+  "version": "1.1.0",
+  "description": "Voice chat backend with TTS and AI - supports continuous voice conversation",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -9,6 +9,7 @@
   "dependencies": {
     "express": "^4.18.2",
     "cors": "^2.8.5",
-    "dotenv": "^16.3.1"
+    "dotenv": "^16.3.1",
+    "ws": "^8.14.2"
   }
 }

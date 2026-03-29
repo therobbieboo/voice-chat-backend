@@ -1,18 +1,27 @@
 const express = require('express');
 const cors = require('cors');
 const https = require('https');
+const http = require('http');
+const { WebSocketServer } = require('ws');
+const { Readable } = require('stream');
 
 const app = express();
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 
 const PORT = process.env.PORT || 3000;
+
+// Create HTTP server
+const server = http.createServer(app);
+
+// WebSocket server
+const wss = new WebSocketServer({ server, path: '/ws/voice' });
 
 // API Keys from environment
 const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY || '';
-const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCKMrIyU6JML_ysD50w0dEO9zJKJUgcrWg';
-const DIALOGUE_MODEL = process.env.DIALOGUE_MODEL || 'minimax'; // 'minimax', 'openai', or 'gemini'
+const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCpGwSZWat3pXPaoUHOOcyMT2yOZJZoE5E';
+const DIALOGUE_MODEL = process.env.DIALOGUE_MODEL || 'gemini';
 
 // MiniMax config
 const MINIMAX_BASE_URL = 'https://api.minimax.io';
@@ -26,14 +35,13 @@ const OPENAI_MODEL = 'gpt-4o-mini';
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
-    service: 'Voice Chat Backend',
+    service: 'Voice Chat Backend v1.1.0',
     dialogueModel: DIALOGUE_MODEL,
-    hasOpenAI: !!OPENAI_KEY,
-    hasMinimax: !!MINIMAX_KEY
+    wsEndpoint: '/ws/voice'
   });
 });
 
-// Main voice chat endpoint
+// REST endpoints (keep existing)
 app.post('/chat', async (req, res) => {
   try {
     const { audio, format = 'mp3', provider = 'openai' } = req.body;
@@ -42,28 +50,25 @@ app.post('/chat', async (req, res) => {
       return res.status(400).json({ error: 'No audio provided' });
     }
 
-    // Step 1: Transcribe audio to text (Whisper)
-    console.log('Step 1: Transcribing...');
+    console.log('REST /chat: Transcribing...');
     const transcription = await transcribe(audio, provider);
-    console.log('Transcription:', transcription);
+    console.log('REST /chat: Transcription:', transcription);
     
     if (!transcription || transcription.trim() === '') {
       return res.status(400).json({ error: 'Could not transcribe audio' });
     }
 
-    // Step 2: Get AI response
-    console.log('Step 2: Getting AI response...');
+    console.log('REST /chat: Getting AI response...');
     const aiResponse = await getAIResponse(transcription);
-    console.log('AI Response:', aiResponse);
+    console.log('REST /chat: AI Response:', aiResponse);
     
     if (!aiResponse || aiResponse.trim() === '') {
       return res.status(500).json({ error: 'No response from AI' });
     }
 
-    // Step 3: Convert AI response to speech
-    console.log('Step 3: Converting to speech...');
+    console.log('REST /chat: Converting to speech...');
     const audioOutput = await textToSpeech(aiResponse, provider);
-    console.log('Audio generated, length:', audioOutput.length);
+    console.log('REST /chat: Audio generated');
     
     res.json({
       transcription,
@@ -73,26 +78,11 @@ app.post('/chat', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Error:', error.message);
+    console.error('REST /chat Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Transcription endpoint (for testing with text)
-app.post('/transcribe', async (req, res) => {
-  try {
-    const { text } = req.body;
-    if (!text) {
-      return res.status(400).json({ error: 'No text provided' });
-    }
-    const aiResponse = await getAIResponse(text);
-    res.json({ response: aiResponse });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
-// Text chat endpoint (no audio)
 app.post('/text-chat', async (req, res) => {
   try {
     const { message } = req.body;
@@ -103,11 +93,11 @@ app.post('/text-chat', async (req, res) => {
     const aiResponse = await getAIResponse(message);
     res.json({ response: aiResponse });
   } catch (error) {
+    console.error('Error:', error.message);
     res.status(500).json({ error: error.message });
   }
 });
 
-// Text to speech endpoint
 app.post('/tts', async (req, res) => {
   try {
     const { text, provider = 'openai', voice } = req.body;
@@ -118,8 +108,65 @@ app.post('/tts', async (req, res) => {
     const audio = await textToSpeech(text, provider, voice);
     res.json({ audio, format: 'mp3' });
   } catch (error) {
+    console.error('TTS Error:', error.message);
     res.status(500).json({ error: error.message });
   }
+});
+
+// WebSocket handling for continuous voice chat
+wss.on('connection', (ws) => {
+  console.log('WebSocket client connected');
+  let conversationHistory = [];
+  
+  ws.on('message', async (message) => {
+    try {
+      // Message format: { type: 'audio', data: base64Audio } or { type: 'text', text: '...' }
+      const msg = JSON.parse(message);
+      
+      if (msg.type === 'audio') {
+        // Receive audio chunk
+        const audioBase64 = msg.data;
+        
+        // Transcribe
+        const transcription = await transcribe(audioBase64, 'openai');
+        if (!transcription || transcription.trim() === '') {
+          ws.send(JSON.stringify({ type: 'transcription', text: '' }));
+          return;
+        }
+        
+        ws.send(JSON.stringify({ type: 'transcription', text: transcription }));
+        
+        // Add to history and get AI response
+        conversationHistory.push({ role: 'user', content: transcription });
+        
+        const aiResponse = await getAIResponseWithHistory(conversationHistory);
+        conversationHistory.push({ role: 'assistant', content: aiResponse });
+        
+        ws.send(JSON.stringify({ type: 'response', text: aiResponse }));
+        
+        // Generate and stream TTS
+        const audioOutput = await textToSpeech(aiResponse, 'minimax', 'Friendly_Person');
+        ws.send(JSON.stringify({ type: 'audio', data: audioOutput }));
+        
+      } else if (msg.type === 'reset') {
+        // Reset conversation history
+        conversationHistory = [];
+        ws.send(JSON.stringify({ type: 'reset', status: 'ok' }));
+      }
+      
+    } catch (error) {
+      console.error('WebSocket message error:', error.message);
+      ws.send(JSON.stringify({ type: 'error', message: error.message }));
+    }
+  });
+  
+  ws.on('close', () => {
+    console.log('WebSocket client disconnected');
+  });
+  
+  ws.on('error', (error) => {
+    console.error('WebSocket error:', error.message);
+  });
 });
 
 // ============ Helper Functions ============
@@ -130,7 +177,6 @@ async function transcribe(audioBase64, provider) {
     return audioBase64;
   }
   
-  // Use OpenAI Whisper for transcription
   const key = OPENAI_KEY;
   if (!key) {
     throw new Error('OpenAI API key not configured');
@@ -155,7 +201,8 @@ async function transcribe(audioBase64, provider) {
       method: 'POST',
       headers: {
         'Content-Type': `multipart/form-data; boundary=${boundary}`,
-        'Authorization': `Bearer ${key}`
+        'Authorization': `Bearer ${key}`,
+        'Content-Length': postData.length
       }
     };
     
@@ -183,27 +230,33 @@ async function transcribe(audioBase64, provider) {
 }
 
 async function getAIResponse(text) {
+  return getAIResponseWithHistory([
+    { role: 'user', content: text }
+  ]);
+}
+
+async function getAIResponseWithHistory(messages) {
   if (DIALOGUE_MODEL === 'gemini' && GEMINI_KEY) {
-    return getGeminiResponse(text);
-  } else if (DIALOGUE_MODEL === 'openai' && OPENAI_KEY) {
-    return getOpenAIResponse(text);
+    return getGeminiResponseWithHistory(messages);
+  } else if (DIALOGUE_MODEL === 'minimax' || MINIMAX_KEY) {
+    return getMinimaxResponseWithHistory(messages);
   } else {
-    return getMinimaxResponse(text);
+    return getOpenAIResponseWithHistory(messages);
   }
 }
 
-async function getOpenAIResponse(text) {
+async function getOpenAIResponseWithHistory(messages) {
   const key = OPENAI_KEY;
   if (!key) {
     throw new Error('OpenAI API key not configured');
   }
   
+  const systemMessage = { role: 'system', content: '你是一個友善的語音助理，請用繁體中文簡潔地回覆。' };
+  const allMessages = [systemMessage, ...messages];
+  
   const postData = JSON.stringify({
     model: OPENAI_MODEL,
-    messages: [
-      { role: 'system', content: '你是一個友善的語音助理，請用簡潔的對話方式回覆。' },
-      { role: 'user', content: text }
-    ],
+    messages: allMessages,
     max_tokens: 500
   });
   
@@ -242,20 +295,19 @@ async function getOpenAIResponse(text) {
   });
 }
 
-async function getGeminiResponse(text) {
+async function getGeminiResponseWithHistory(messages) {
   const key = GEMINI_KEY;
   if (!key) {
     throw new Error('Gemini API key not configured');
   }
   
+  // Convert messages to Gemini format
+  const contents = messages.map(m => ({
+    parts: [{ text: m.content }]
+  }));
+  
   const postData = JSON.stringify({
-    contents: [
-      {
-        parts: [
-          { text: `你是一個友善的語音助理，請用繁體中文簡潔地回覆這個問題: ${text}` }
-        ]
-      }
-    ],
+    contents,
     generationConfig: {
       maxOutputTokens: 500,
       temperature: 0.9
@@ -298,7 +350,7 @@ async function getGeminiResponse(text) {
   });
 }
 
-async function getMinimaxResponse(text) {
+async function getMinimaxResponseWithHistory(messages) {
   const key = MINIMAX_KEY;
   if (!key) {
     throw new Error('MiniMax API key not configured');
@@ -306,9 +358,7 @@ async function getMinimaxResponse(text) {
   
   const postData = JSON.stringify({
     model: MINIMAX_MODEL,
-    messages: [
-      { role: 'user', content: text }
-    ],
+    messages,
     max_tokens: 500
   });
   
@@ -334,8 +384,6 @@ async function getMinimaxResponse(text) {
           if (parsed.error) {
             reject(new Error(parsed.error.message));
           } else {
-            // MiniMax returns content as array with possibly thinking + text blocks
-            // Find the text block
             const textBlock = parsed.content.find(c => c.type === 'text');
             if (textBlock) {
               resolve(textBlock.text);
@@ -443,7 +491,6 @@ async function minimaxTTS(text, voice = 'Friendly_Person') {
           if (parsed.base_resp?.status_code !== 0) {
             reject(new Error(parsed.base_resp?.status_msg || 'MiniMax TTS error'));
           } else {
-            // MiniMax returns hex-encoded audio
             const audioBuffer = Buffer.from(parsed.data.audio, 'hex');
             resolve(audioBuffer.toString('base64'));
           }
@@ -459,9 +506,9 @@ async function minimaxTTS(text, voice = 'Friendly_Person') {
   });
 }
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Voice Chat Backend running on port ${PORT}`);
+server.listen(PORT, '0.0.0.0', () => {
+  console.log(`Voice Chat Backend v1.1.0 running on port ${PORT}`);
+  console.log(`REST endpoints: /chat, /text-chat, /tts`);
+  console.log(`WebSocket endpoint: ws://localhost:${PORT}/ws/voice`);
   console.log(`Dialogue model: ${DIALOGUE_MODEL}`);
-  console.log(`OpenAI: ${OPENAI_KEY ? 'configured' : 'NOT configured'}`);
-  console.log(`MiniMax: ${MINIMAX_KEY ? 'configured' : 'NOT configured'}`);
 });
