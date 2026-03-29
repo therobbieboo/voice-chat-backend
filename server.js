@@ -140,11 +140,12 @@ async function transcribe(audioBase64, provider) {
   
   return new Promise((resolve, reject) => {
     const boundary = '----FormBoundary7MA4YWxkTrZu0gW';
+    const CRLF = '\r\n';
     const parts = [
-      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1`),
-      Buffer.from(`--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="audio.webm"\r\nContent-Type: audio/webm\r\n`),
+      Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="model"${CRLF}${CRLF}whisper-1`),
+      Buffer.from(`${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="audio.webm"${CRLF}Content-Type: audio/webm${CRLF}${CRLF}`),
       audioBuffer,
-      Buffer.from(`--${boundary}--\r\n`)
+      Buffer.from(`${CRLF}--${boundary}--${CRLF}`)
     ];
     const postData = Buffer.concat(parts);
     
