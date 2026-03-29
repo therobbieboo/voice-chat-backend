@@ -27,6 +27,27 @@
       box-shadow: 0 4px 20px rgba(0,0,0,0.3);
     }
     
+    .mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .mode-btn {
+      flex: 1;
+      padding: 12px;
+      border: 1px solid #333;
+      border-radius: 10px;
+      background: #0f3460;
+      color: #aaa;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: bold;
+      text-align: center;
+      transition: all 0.2s;
+    }
+    .mode-btn:hover { border-color: #00d4ff; color: #fff; }
+    .mode-btn.active { border-color: #00d4ff; background: #00d4ff20; color: #00d4ff; }
+    
     .chat-container {
       height: 300px;
       overflow-y: auto;
@@ -58,6 +79,11 @@
       font-size: 12px;
       text-align: center;
     }
+    .message.transcribing {
+      background: #ffaa0020;
+      color: #ffaa00;
+      font-style: italic;
+    }
     
     .controls {
       display: flex;
@@ -65,22 +91,22 @@
       align-items: center;
     }
     
-    .record-btn {
-      width: 64px;
-      height: 64px;
+    .call-btn {
+      width: 80px;
+      height: 80px;
       border-radius: 50%;
-      border: 3px solid #00d4ff;
+      border: 4px solid #00d4ff;
       background: #0f3460;
       color: #00d4ff;
-      font-size: 24px;
+      font-size: 28px;
       cursor: pointer;
       transition: all 0.2s;
       display: flex;
       align-items: center;
       justify-content: center;
     }
-    .record-btn:hover { background: #00d4ff20; }
-    .record-btn.recording {
+    .call-btn:hover { background: #00d4ff20; }
+    .call-btn.recording {
       background: #ff4444;
       border-color: #ff4444;
       color: #fff;
@@ -90,6 +116,23 @@
       0%, 100% { transform: scale(1); }
       50% { transform: scale(1.1); }
     }
+    
+    .hangup-btn {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 4px solid #ff4444;
+      background: #0f3460;
+      color: #ff4444;
+      font-size: 28px;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hangup-btn:hover { background: #ff444420; }
+    .hangup-btn.hidden { display: none; }
     
     .text-input {
       flex: 1;
@@ -134,6 +177,13 @@
       text-align: center;
       margin-top: 16px;
     }
+    .settings select {
+      background: #0f3460;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 6px 10px;
+      color: #fff;
+    }
     .settings input {
       background: #0f3460;
       border: 1px solid #333;
@@ -164,28 +214,68 @@
       margin-top: 8px;
       display: none;
     }
+    
+    .waveform {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 4px;
+      height: 40px;
+      margin: 10px 0;
+    }
+    .waveform.hidden { display: none; }
+    .wave-bar {
+      width: 4px;
+      height: 20px;
+      background: #00d4ff;
+      border-radius: 2px;
+      animation: wave 0.5s ease-in-out infinite;
+    }
+    .wave-bar:nth-child(1) { animation-delay: 0s; }
+    .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+    .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+    .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+    .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+    @keyframes wave {
+      0%, 100% { height: 20px; }
+      50% { height: 35px; }
+    }
   </style>
 </head>
 <body>
   <h1>🎙️ 語音對話</h1>
-  <p class="subtitle">語音輸入 → AI 回覆 → 語音輸出</p>
+  <p class="subtitle">選擇模式：單次對話 或 持續通話</p>
   
   <div class="card">
     <div class="api-section">
       <input type="text" id="backendUrl" placeholder="後端 URL" value="https://voice-chat-backend-production.up.railway.app">
     </div>
-    <div class="api-section">
-      <input type="text" id="apiKey" placeholder="OpenAI 或 MiniMax API Key">
+    
+    <div class="mode-toggle">
+      <button class="mode-btn" id="singleModeBtn" onclick="setMode('single')">單次對話</button>
+      <button class="mode-btn active" id="callModeBtn" onclick="setMode('call')">持續通話</button>
+    </div>
+    
+    <div class="waveform hidden" id="waveform">
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
+      <div class="wave-bar"></div>
     </div>
     
     <div class="chat-container" id="chatContainer">
-      <div class="message system">系統就緒，請輸入 API Key 開始對話</div>
+      <div class="message system">系統就緒，選擇「持續通話」模式開始語音對話</div>
     </div>
     
-    <div class="controls">
-      <button class="record-btn" id="recordBtn">🎤</button>
-      <input type="text" class="text-input" id="textInput" placeholder="或直接輸入文字...">
-      <button class="send-btn" id="sendBtn">發送</button>
+    <div class="controls" id="singleControls" style="display:none;">
+      <input type="text" class="text-input" id="textInput" placeholder="輸入文字訊息..." onkeypress="handleKeyPress(event)">
+      <button class="send-btn" id="sendBtn" onclick="sendMessage()">發送</button>
+    </div>
+    
+    <div class="controls" id="callControls">
+      <button class="call-btn" id="callBtn">🎤</button>
+      <button class="hangup-btn hidden" id="hangupBtn">📴</button>
     </div>
     
     <div id="status" class="status"></div>
@@ -199,14 +289,7 @@
       <option value="minimax">MiniMax</option>
       <option value="openai">OpenAI</option>
     </select>
-    <label>語音輸出：</label>
-    <select id="voiceProvider" onchange="updateVoices()">
-      <option value="minimax">MiniMax (多聲音)</option>
-      <option value="openai">OpenAI (6種)</option>
-    </select>
-  </div>
-  <div class="settings" style="margin-top:8px;">
-    <label>聲音選擇：</label>
+    <label>語音：</label>
     <select id="voice">
       <option value="Wise_Woman">Wise Woman (知性女)</option>
       <option value="Friendly_Person">Friendly Person (友善女)</option>
@@ -220,47 +303,111 @@
   </div>
 
   <script>
-    console.log('Script starting...');
-    document.addEventListener('DOMContentLoaded', function() {
-      console.log('DOM loaded, setting up...');
+    let mode = 'call'; // 'single' or 'call'
     let isRecording = false;
+    let ws = null;
     let mediaRecorder = null;
     let audioChunks = [];
+    let wsConnected = false;
     
-    const minimaxVoices = ['Wise_Woman', 'Friendly_Person', 'Deep_Voice_Man', 'Calm_Woman'];
-    
-    function updateVoices() {
-      const voiceProvider = document.getElementById('voiceProvider').value;
-      const voiceSelect = document.getElementById('voice');
+    function setMode(newMode) {
+      mode = newMode;
+      document.getElementById('singleModeBtn').classList.toggle('active', mode === 'single');
+      document.getElementById('callModeBtn').classList.toggle('active', mode === 'call');
+      document.getElementById('singleControls').style.display = mode === 'single' ? 'flex' : 'none';
+      document.getElementById('callControls').style.display = mode === 'call' ? 'flex' : 'none';
+      document.getElementById('waveform').classList.add('hidden');
       
-      if (voiceProvider === 'minimax') {
-        voiceSelect.innerHTML = `
-          <option value="Wise_Woman">Wise Woman (知性女)</option>
-          <option value="Friendly_Person">Friendly Person (友善女)</option>
-          <option value="Calm_Woman">Calm Woman (溫柔女)</option>
-          <option value="Lively_Girl">Lively Girl (活潑女)</option>
-          <option value="Deep_Voice_Man">Deep Voice Man (低沉男)</option>
-          <option value="Young_Knight">Young Knight (陽光男)</option>
-          <option value="Determined_Man">Determined Man (堅定男)</option>
-          <option value="Casual_Guy">Casual Guy (休閒男)</option>
-        `;
-      } else {
-        voiceSelect.innerHTML = `
-          <option value="alloy">Alloy (中性)</option>
-          <option value="nova">Nova (女性)</option>
-          <option value="echo">Echo (男性)</option>
-          <option value="fable">Fable (英式)</option>
-          <option value="onyx">Onyx (低沉男)</option>
-          <option value="shimmer">Shimmer (柔和女)</option>
-        `;
+      if (mode === 'call' && isRecording) {
+        stopCall();
       }
     }
     
-    async function toggleRecording() {
-      if (isRecording) {
-        stopRecording();
-      } else {
-        await startRecording();
+    // ============ CALL MODE (WebSocket) ============
+    
+    function startCall() {
+      const backendUrl = document.getElementById('backendUrl').value.trim();
+      const wsUrl = backendUrl.replace('http', 'ws') + '/ws/voice';
+      
+      addMessage('system', '連接中...');
+      
+      ws = new WebSocket(wsUrl);
+      
+      ws.onopen = () => {
+        console.log('WebSocket connected');
+        wsConnected = true;
+        addMessage('system', '已連接，開始說話...');
+        document.getElementById('callBtn').classList.add('recording');
+        document.getElementById('callBtn').textContent = '🎤';
+        document.getElementById('hangupBtn').classList.remove('hidden');
+        document.getElementById('waveform').classList.remove('hidden');
+        isRecording = true;
+        startRecording();
+      };
+      
+      ws.onmessage = (event) => {
+        try {
+          const msg = JSON.parse(event.data);
+          handleWsMessage(msg);
+        } catch (e) {
+          console.error('Failed to parse WebSocket message:', e);
+        }
+      };
+      
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        addMessage('system', '連接錯誤');
+        stopCall();
+      };
+      
+      ws.onclose = () => {
+        console.log('WebSocket closed');
+        wsConnected = false;
+        isRecording = false;
+        document.getElementById('callBtn').classList.remove('recording');
+        document.getElementById('callBtn').textContent = '🎤';
+        document.getElementById('hangupBtn').classList.add('hidden');
+        document.getElementById('waveform').classList.add('hidden');
+        addMessage('system', '連接已結束');
+      };
+    }
+    
+    function stopCall() {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+      }
+      if (ws && wsConnected) {
+        ws.send(JSON.stringify({ type: 'reset' }));
+        ws.close();
+      }
+      isRecording = false;
+      wsConnected = false;
+    }
+    
+    function handleWsMessage(msg) {
+      switch (msg.type) {
+        case 'transcription':
+          if (msg.text) {
+            addMessage('user', `🎤 ${msg.text}`);
+          }
+          break;
+        case 'response':
+          addMessage('ai', msg.text);
+          break;
+        case 'audio':
+          if (msg.data) {
+            const audio = document.getElementById('responseAudio');
+            audio.src = 'data:audio/mp3;base64,' + msg.data;
+            audio.style.display = 'block';
+            audio.play().catch(() => {});
+          }
+          break;
+        case 'reset':
+          console.log('Conversation reset');
+          break;
+        case 'error':
+          addMessage('system', '錯誤: ' + msg.message);
+          break;
       }
     }
     
@@ -268,15 +415,11 @@
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         
-        // Try different MIME types for better compatibility
         let mimeType = 'audio/webm;codecs=opus';
         if (!MediaRecorder.isTypeSupported(mimeType)) {
           mimeType = 'audio/webm';
           if (!MediaRecorder.isTypeSupported(mimeType)) {
             mimeType = 'audio/ogg';
-            if (!MediaRecorder.isTypeSupported(mimeType)) {
-              mimeType = 'audio/mp4';
-            }
           }
         }
         
@@ -285,59 +428,46 @@
         audioChunks = [];
         
         mediaRecorder.ondataavailable = event => {
-          console.log('Data available:', event.data.size, 'bytes');
-          audioChunks.push(event.data);
-        };
-        
-        mediaRecorder.onstop = async () => {
-          console.log('Recording stopped, chunks:', audioChunks.length);
-          if (audioChunks.length === 0) {
-            showStatus('沒有錄到音頻，請再試一次', 'error');
-            return;
+          if (event.data.size > 0) {
+            audioChunks.push(event.data);
           }
-          
-          const audioBlob = new Blob(audioChunks, { type: mimeType });
-          console.log('Blob size:', audioBlob.size, 'bytes');
-          
-          const reader = new FileReader();
-          reader.onload = () => {
-            const base64 = reader.result.split(',')[1];
-            console.log('Base64 length:', base64.length);
-            sendAudio(base64);
-          };
-          reader.onerror = () => {
-            showStatus('音頻處理失敗', 'error');
-          };
-          reader.readAsDataURL(audioBlob);
-          
-          stream.getTracks().forEach(track => track.stop());
         };
         
-        mediaRecorder.onerror = (e) => {
-          console.error('MediaRecorder error:', e);
-          showStatus('錄音失敗: ' + e.error?.message, 'error');
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(track => track.stop());
+          
+          if (audioChunks.length > 0 && ws && wsConnected) {
+            const audioBlob = new Blob(audioChunks, { type: mimeType });
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result.split(',')[1];
+              ws.send(JSON.stringify({ type: 'audio', data: base64 }));
+            };
+            reader.readAsDataURL(audioBlob);
+          }
         };
         
         mediaRecorder.start(1000); // Collect data every second
-        isRecording = true;
-        document.getElementById('recordBtn').classList.add('recording');
-        document.getElementById('recordBtn').textContent = '⏹';
-        showStatus('錄音中...', 'loading');
+        console.log('Recording started');
         
       } catch (error) {
-        console.error('Microphone access error:', error);
-        showStatus('無法訪問麥克風: ' + error.message, 'error');
+        console.error('Failed to start recording:', error);
+        addMessage('system', '無法訪問麥克風: ' + error.message);
+        stopCall();
       }
     }
     
-    function stopRecording() {
-      if (mediaRecorder && isRecording) {
-        mediaRecorder.stop();
-        isRecording = false;
-        document.getElementById('recordBtn').classList.remove('recording');
-        document.getElementById('recordBtn').textContent = '🎤';
+    document.getElementById('callBtn').addEventListener('click', () => {
+      if (isRecording) {
+        stopCall();
+      } else {
+        startCall();
       }
-    }
+    });
+    
+    document.getElementById('hangupBtn').addEventListener('click', stopCall);
+    
+    // ============ SINGLE MODE (REST API) ============
     
     function handleKeyPress(event) {
       if (event.key === 'Enter') {
@@ -349,81 +479,11 @@
       const text = document.getElementById('textInput').value.trim();
       const backendUrl = document.getElementById('backendUrl').value.trim();
       
-      if (!backendUrl) {
-        showStatus('請輸入後端 URL', 'error');
-        return;
-      }
-      
-      if (!text) {
-        showStatus('請輸入文字', 'error');
-        return;
-      }
+      if (!text) return;
       
       addMessage('user', text);
       document.getElementById('textInput').value = '';
       
-      await chat(text, backendUrl);
-    }
-    
-    async function sendAudio(base64) {
-      const backendUrl = document.getElementById('backendUrl').value.trim();
-      
-      if (!backendUrl) {
-        showStatus('請輸入後端 URL', 'error');
-        return;
-      }
-      
-      if (!base64 || base64.length < 100) {
-        showStatus('音頻數據無效', 'error');
-        return;
-      }
-      
-      showStatus('辨識中...', 'loading');
-      
-      try {
-        const response = await fetch(backendUrl + '/chat', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            audio: base64,
-            provider: document.getElementById('provider').value
-          })
-        });
-        
-        if (!response.ok) {
-          throw new Error('Server error: ' + response.status);
-        }
-        
-        const data = await response.json();
-        
-        if (data.error) {
-          throw new Error(data.error);
-        }
-        
-        // Show transcription
-        addMessage('user', `🎤 ${data.transcription}`);
-        
-        // Show AI response
-        addMessage('ai', data.response);
-        
-        // Play audio response
-        if (data.audio) {
-          const audio = document.getElementById('responseAudio');
-          audio.src = 'data:audio/mp3;base64,' + data.audio;
-          audio.style.display = 'block';
-          audio.play().catch(() => {});
-        }
-        
-        showStatus('完成', 'success');
-        
-      } catch (error) {
-        console.error('Chat error:', error);
-        showStatus('錯誤: ' + error.message, 'error');
-      }
-    }
-      
-    
-    async function chat(text, backendUrl) {
       showStatus('處理中...', 'loading');
       
       try {
@@ -436,21 +496,19 @@
         const data = await response.json();
         
         if (data.error) {
-          showStatus(data.error, 'error');
-          return;
+          throw new Error(data.error);
         }
         
         addMessage('ai', data.response);
-        
-        // Also convert to speech
         showStatus('生成語音...', 'loading');
         
+        // Convert to speech
         const ttsResponse = await fetch(backendUrl + '/tts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ 
             text: data.response,
-            provider: document.getElementById('voiceProvider').value,
+            provider: 'minimax',
             voice: document.getElementById('voice').value
           })
         });
@@ -471,6 +529,8 @@
       }
     }
     
+    // ============ UTILITIES ============
+    
     function addMessage(type, text) {
       const container = document.getElementById('chatContainer');
       const div = document.createElement('div');
@@ -486,14 +546,13 @@
       el.className = 'status ' + type;
       if (type !== 'loading') {
         setTimeout(() => { el.style.display = 'none'; }, 3000);
+      } else {
+        el.style.display = 'block';
       }
     }
     
-    // Attach event listeners
-    document.getElementById('recordBtn').addEventListener('click', toggleRecording);
-    document.getElementById('sendBtn').addEventListener('click', sendMessage);
-    document.getElementById('textInput').addEventListener('keypress', handleKeyPress);
-    }); // end DOMContentLoaded
+    // Initialize
+    setMode('call');
   </script>
 </body>
 </html>
