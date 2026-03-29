@@ -257,12 +257,20 @@ async function getAIResponse(text) {
 }
 
 async function getAIResponseWithHistory(messages) {
+  console.log('getAIResponseWithHistory called, DIALOGUE_MODEL:', DIALOGUE_MODEL, 'GEMINI_KEY exists:', !!GEMINI_KEY);
+  
   if (DIALOGUE_MODEL === 'gemini' && GEMINI_KEY) {
+    console.log('Using Gemini');
     return getGeminiResponseWithHistory(messages);
-  } else if (DIALOGUE_MODEL === 'minimax' || MINIMAX_KEY) {
+  } else if (MINIMAX_KEY) {
+    console.log('Using MiniMax');
     return getMinimaxResponseWithHistory(messages);
-  } else {
+  } else if (DIALOGUE_MODEL === 'openai' && OPENAI_KEY) {
+    console.log('Using OpenAI');
     return getOpenAIResponseWithHistory(messages);
+  } else {
+    console.log('No valid API key, using Gemini as fallback');
+    return getGeminiResponseWithHistory(messages);
   }
 }
 
@@ -327,6 +335,9 @@ async function getGeminiResponseWithHistory(messages) {
     parts: [{ text: m.content }]
   }));
   
+  console.log('Gemini request - messages count:', messages.length);
+  console.log('Gemini request - first message:', messages[0]);
+  
   const postData = JSON.stringify({
     contents,
     generationConfig: {
@@ -350,14 +361,16 @@ async function getGeminiResponseWithHistory(messages) {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
+        console.log('Gemini response status:', res.statusCode);
         try {
           const parsed = JSON.parse(data);
+          console.log('Gemini parsed response:', JSON.stringify(parsed).substring(0, 200));
           if (parsed.error) {
             reject(new Error(parsed.error.message));
           } else if (parsed.candidates && parsed.candidates[0]?.content?.parts[0]?.text) {
             resolve(parsed.candidates[0].content.parts[0].text);
           } else {
-            reject(new Error('Invalid Gemini response format'));
+            reject(new Error('Invalid Gemini response format: ' + JSON.stringify(parsed).substring(0, 100)));
           }
         } catch (e) {
           reject(new Error('Failed to parse Gemini response: ' + e.message));
