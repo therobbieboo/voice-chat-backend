@@ -168,7 +168,7 @@ wss.on('connection', (ws) => {
        
         // Generate TTS using TTS_MODEL env var
         console.log('WS Generating TTS with model:', TTS_MODEL);
-        const audioOutput = await textToSpeech(aiResponse, TTS_MODEL, 'Friendly_Person');
+        const audioOutput = await textToSpeech(aiResponse, TTS_MODEL, 'alloy');
         ws.send(JSON.stringify({ type: 'audio', data: audioOutput }));
         console.log('WS TTS sent');
        
