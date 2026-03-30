@@ -565,24 +565,20 @@ async function geminiTTS(text, voice) {
 // This allows frontend to connect directly to OpenAI Realtime API via WebRTC
 app.post('/session', async (req, res) => {
   try {
-    const { model = 'gpt-realtime', voice = 'alloy' } = req.body || {};
+    const { model = 'gpt-4o-realtime-preview-2025-06-03', voice = 'alloy' } = req.body || {};
     
-    console.log('[/session] Creating OpenAI Realtime ephemeral key, model:', model, 'voice:', voice);
+    console.log('[/session] Creating OpenAI Realtime session, model:', model, 'voice:', voice);
     
     // Create ephemeral key via OpenAI REST API
-    // Note: endpoint is /v1/realtime/client_secrets for ephemeral keys
-    const response = await fetch('https://api.openai.com/v1/realtime/client_secrets', {
+    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${OPENAI_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        session: {
-          type: 'realtime',
-          model: model,
-          voice: voice,
-        }
+        model: model,
+        voice: voice,
       }),
     });
     
@@ -593,14 +589,14 @@ app.post('/session', async (req, res) => {
     }
     
     const sessionData = await response.json();
-    console.log('[/session] Ephemeral key created, expires_at:', sessionData.expires_at);
+    console.log('[/session] Session created successfully');
     
     res.json({
       client_secret: {
-        value: sessionData.value, // The ephemeral key starts with ek_
-        expires_at: sessionData.expires_at,
+        value: sessionData.client_secret.value,
+        expires_at: sessionData.client_secret.expires_at,
       },
-      model: model,
+      model: sessionData.model,
       voice: voice,
     });
   } catch (error) {
