@@ -20,7 +20,7 @@ const wss = new WebSocketServer({ server, path: '/ws/voice' });
 // API Keys from environment
 const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY || '';
-const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCpGwSZWat3pXPaoUHOOcyMT2yOZJZoE5E';
+const GEMINI_KEY = process.env.GEMINI_API_KEY || '';
 const DIALOGUE_MODEL = process.env.DIALOGUE_MODEL || 'gemini';
 const TTS_MODEL = process.env.TTS_MODEL || 'gemini'; // 'gemini', 'openai', or 'minimax'
 
