@@ -348,6 +348,7 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
+          console.log('WebSocket received:', msg.type, msg.text || msg.response || msg.data?.substring(0, 50) || '');
           handleWsMessage(msg);
         } catch (e) {
           console.error('Failed to parse WebSocket message:', e);
@@ -428,6 +429,7 @@
         audioChunks = [];
         
         mediaRecorder.ondataavailable = event => {
+          console.log('Audio chunk received, size:', event.data.size);
           if (event.data.size > 0) {
             audioChunks.push(event.data);
           }
@@ -448,7 +450,7 @@
         };
         
         mediaRecorder.start(1000); // Collect data every second
-        console.log('Recording started');
+        console.log('Recording started, will send chunks every second');
         
       } catch (error) {
         console.error('Failed to start recording:', error);
