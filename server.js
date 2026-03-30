@@ -565,11 +565,12 @@ async function geminiTTS(text, voice) {
 // This allows frontend to connect directly to OpenAI Realtime API via WebRTC
 app.post('/session', async (req, res) => {
   try {
-    const { model = 'gpt-4o-realtime-preview-2025-06-03', voice = 'alloy' } = req.body || {};
+    const { model = 'gpt-4o-realtime-preview-2025-06-03' } = req.body || {};
     
-    console.log('[/session] Creating OpenAI Realtime session, model:', model, 'voice:', voice);
+    console.log('[/session] Creating OpenAI Realtime session, model:', model);
     
     // Create ephemeral key via OpenAI REST API
+    // Only send model - voice is set by the client
     const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
       method: 'POST',
       headers: {
@@ -578,7 +579,6 @@ app.post('/session', async (req, res) => {
       },
       body: JSON.stringify({
         model: model,
-        voice: voice,
       }),
     });
     
@@ -589,7 +589,7 @@ app.post('/session', async (req, res) => {
     }
     
     const sessionData = await response.json();
-    console.log('[/session] Session created successfully');
+    console.log('[/session] Session created, key starts with:', sessionData.client_secret?.value?.substring(0, 20));
     
     res.json({
       client_secret: {
@@ -597,7 +597,6 @@ app.post('/session', async (req, res) => {
         expires_at: sessionData.client_secret.expires_at,
       },
       model: sessionData.model,
-      voice: voice,
     });
   } catch (error) {
     console.error('[/session] Error:', error.message);
