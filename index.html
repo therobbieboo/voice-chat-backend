@@ -348,7 +348,9 @@
       ws.onmessage = (event) => {
         try {
           const msg = JSON.parse(event.data);
-          console.log('WebSocket received:', msg.type, msg.text || msg.response || msg.data?.substring(0, 50) || '');
+          console.log('WS received type:', msg.type);
+          console.log('WS msg.text:', msg.text);
+          console.log('WS msg.response:', msg.response ? msg.response.substring(0, 50) : 'undefined');
           handleWsMessage(msg);
         } catch (e) {
           console.error('Failed to parse WebSocket message:', e);
