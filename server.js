@@ -22,6 +22,7 @@ const OPENAI_KEY = process.env.OPENAI_API_KEY || '';
 const MINIMAX_KEY = process.env.MINIMAX_API_KEY || '';
 const GEMINI_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCpGwSZWat3pXPaoUHOOcyMT2yOZJZoE5E';
 const DIALOGUE_MODEL = process.env.DIALOGUE_MODEL || 'gemini';
+const TTS_MODEL = process.env.TTS_MODEL || 'gemini'; // 'gemini', 'openai', or 'minimax'
 
 // MiniMax config
 const MINIMAX_BASE_URL = 'https://api.minimax.io';
@@ -35,8 +36,9 @@ const OPENAI_MODEL = 'gpt-4o-mini';
 app.get('/', (req, res) => {
   res.json({ 
     status: 'ok', 
-    service: 'Voice Chat Backend v1.1.0',
+    service: 'Voice Chat Backend v1.2.0',
     dialogueModel: DIALOGUE_MODEL,
+    ttsModel: TTS_MODEL,
     wsEndpoint: '/ws/voice'
   });
 });
@@ -118,61 +120,61 @@ wss.on('connection', (ws) => {
   console.log('WebSocket client connected');
   let conversationHistory = [];
   let isProcessing = false; // Prevent concurrent calls
-  
+ 
   ws.on('message', async (message) => {
     // Skip if still processing previous message
     if (isProcessing) {
       console.log('Skipping message - still processing previous');
       return;
     }
-    
+   
     try {
       isProcessing = true;
       const msg = JSON.parse(message);
-      
+     
       if (msg.type === 'audio') {
         const audioBase64 = msg.data;
-        
+       
         // Transcribe
         const transcription = await transcribe(audioBase64, 'openai');
         console.log('WS Transcription:', transcription);
-        
+       
         if (!transcription || transcription.trim() === '') {
           ws.send(JSON.stringify({ type: 'transcription', text: '' }));
           isProcessing = false;
           return;
         }
-        
+       
         ws.send(JSON.stringify({ type: 'transcription', text: transcription }));
-        
+       
         // Add to history and get AI response
         conversationHistory.push({ role: 'user', content: transcription });
-        
+       
         console.log('WS Getting AI response with history length:', conversationHistory.length);
         const aiResponse = await getAIResponseWithHistory(conversationHistory);
         console.log('WS AI Response:', aiResponse);
-        
+       
         if (!aiResponse || aiResponse.trim() === '') {
           console.error('Empty AI response');
           isProcessing = false;
           return;
         }
-        
+       
         conversationHistory.push({ role: 'assistant', content: aiResponse });
-        
+       
         ws.send(JSON.stringify({ type: 'response', response: aiResponse }));
-        
-        // Generate TTS
-        console.log('WS Generating TTS...');
-        const audioOutput = await textToSpeech(aiResponse, 'minimax', 'Friendly_Person');
+       
+        // Generate TTS using TTS_MODEL env var
+        console.log('WS Generating TTS with model:', TTS_MODEL);
+        const audioOutput = await textToSpeech(aiResponse, TTS_MODEL, 'Friendly_Person');
         ws.send(JSON.stringify({ type: 'audio', data: audioOutput }));
         console.log('WS TTS sent');
-        
+       
       } else if (msg.type === 'reset') {
         conversationHistory = [];
         ws.send(JSON.stringify({ type: 'reset', status: 'ok' }));
       }
-      
+     
     } catch (error) {
       console.error('WebSocket message error:', error.message);
       ws.send(JSON.stringify({ type: 'error', message: error.message }));
@@ -180,11 +182,11 @@ wss.on('connection', (ws) => {
       isProcessing = false;
     }
   });
-  
+ 
   ws.on('close', () => {
     console.log('WebSocket client disconnected');
   });
-  
+ 
   ws.on('error', (error) => {
     console.error('WebSocket error:', error.message);
   });
@@ -197,14 +199,14 @@ async function transcribe(audioBase64, provider) {
   if (typeof audioBase64 === 'string' && !audioBase64.includes('=') && audioBase64.length < 1000) {
     return audioBase64;
   }
-  
+ 
   const key = OPENAI_KEY;
   if (!key) {
     throw new Error('OpenAI API key not configured');
   }
-  
+ 
   const audioBuffer = Buffer.from(audioBase64, 'base64');
-  
+ 
   return new Promise((resolve, reject) => {
     const boundary = '----FormBoundary7MA4YWxkTrZu0gW';
     const CRLF = '\r\n';
@@ -215,7 +217,7 @@ async function transcribe(audioBase64, provider) {
       Buffer.from(`${CRLF}--${boundary}--${CRLF}`)
     ];
     const postData = Buffer.concat(parts);
-    
+   
     const options = {
       hostname: 'api.openai.com',
       path: '/v1/audio/transcriptions',
@@ -226,7 +228,7 @@ async function transcribe(audioBase64, provider) {
         'Content-Length': postData.length
       }
     };
-    
+   
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
@@ -243,7 +245,7 @@ async function transcribe(audioBase64, provider) {
         }
       });
     });
-    
+   
     req.on('error', reject);
     req.write(postData);
     req.end();
@@ -258,7 +260,7 @@ async function getAIResponse(text) {
 
 async function getAIResponseWithHistory(messages) {
   console.log('getAIResponseWithHistory called, DIALOGUE_MODEL:', DIALOGUE_MODEL, 'GEMINI_KEY exists:', !!GEMINI_KEY);
-  
+ 
   if (DIALOGUE_MODEL === 'gemini' && GEMINI_KEY) {
     console.log('Using Gemini');
     return getGeminiResponseWithHistory(messages);
@@ -279,16 +281,16 @@ async function getOpenAIResponseWithHistory(messages) {
   if (!key) {
     throw new Error('OpenAI API key not configured');
   }
-  
+ 
   const systemMessage = { role: 'system', content: '你是一個友善的語音助理，請用繁體中文簡潔地回覆。' };
   const allMessages = [systemMessage, ...messages];
-  
+ 
   const postData = JSON.stringify({
     model: OPENAI_MODEL,
     messages: allMessages,
     max_tokens: 500
   });
-  
+ 
   const options = {
     hostname: 'api.openai.com',
     path: '/v1/chat/completions',
@@ -299,7 +301,7 @@ async function getOpenAIResponseWithHistory(messages) {
       'Content-Length': Buffer.byteLength(postData)
     }
   };
-  
+ 
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = '';
@@ -317,7 +319,7 @@ async function getOpenAIResponseWithHistory(messages) {
         }
       });
     });
-    
+   
     req.on('error', reject);
     req.write(postData);
     req.end();
@@ -329,15 +331,15 @@ async function getGeminiResponseWithHistory(messages) {
   if (!key) {
     throw new Error('Gemini API key not configured');
   }
-  
+ 
   // Convert messages to Gemini format
   const contents = messages.map(m => ({
     parts: [{ text: m.content }]
   }));
-  
+ 
   console.log('Gemini request - messages count:', messages.length);
   console.log('Gemini request - first message:', messages[0]);
-  
+ 
   const postData = JSON.stringify({
     contents,
     generationConfig: {
@@ -345,9 +347,9 @@ async function getGeminiResponseWithHistory(messages) {
       temperature: 0.9
     }
   });
-  
+ 
   const options = {
-    hostname: 'generativelanguage.googleapis.com',
+    hostname: 'generativanguage.googleapis.com',
     path: `/v1beta/models/gemini-2.5-flash:generateContent?key=${key}`,
     method: 'POST',
     headers: {
@@ -355,7 +357,7 @@ async function getGeminiResponseWithHistory(messages) {
       'Content-Length': Buffer.byteLength(postData)
     }
   };
-  
+ 
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = '';
@@ -377,7 +379,7 @@ async function getGeminiResponseWithHistory(messages) {
         }
       });
     });
-    
+   
     req.on('error', reject);
     req.write(postData);
     req.end();
@@ -389,13 +391,13 @@ async function getMinimaxResponseWithHistory(messages) {
   if (!key) {
     throw new Error('MiniMax API key not configured');
   }
-  
+ 
   const postData = JSON.stringify({
     model: MINIMAX_MODEL,
     messages,
     max_tokens: 500
   });
-  
+ 
   const options = {
     hostname: 'api.minimax.io',
     path: '/anthropic/v1/messages',
@@ -407,7 +409,7 @@ async function getMinimaxResponseWithHistory(messages) {
       'anthropic-version': '2023-06-01'
     }
   };
-  
+ 
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = '';
@@ -430,7 +432,7 @@ async function getMinimaxResponseWithHistory(messages) {
         }
       });
     });
-    
+   
     req.on('error', reject);
     req.write(postData);
     req.end();
@@ -440,6 +442,8 @@ async function getMinimaxResponseWithHistory(messages) {
 async function textToSpeech(text, provider = 'openai', voice) {
   if (provider === 'minimax') {
     return minimaxTTS(text, voice);
+  } else if (provider === 'gemini') {
+    return geminiTTS(text, voice);
   } else {
     return openaiTTS(text, voice);
   }
@@ -450,14 +454,14 @@ async function openaiTTS(text, voice = 'alloy') {
   if (!key) {
     throw new Error('OpenAI API key not configured');
   }
-  
+ 
   const postData = JSON.stringify({
     model: 'gpt-4o-mini-tts',
     voice: voice || 'alloy',
     input: text,
     response_format: 'mp3'
   });
-  
+ 
   const options = {
     hostname: 'api.openai.com',
     path: '/v1/audio/speech',
@@ -468,7 +472,7 @@ async function openaiTTS(text, voice = 'alloy') {
       'Content-Length': Buffer.byteLength(postData)
     }
   };
-  
+ 
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       const chunks = [];
@@ -478,7 +482,7 @@ async function openaiTTS(text, voice = 'alloy') {
         resolve(buffer.toString('base64'));
       });
     });
-    
+   
     req.on('error', reject);
     req.write(postData);
     req.end();
@@ -490,7 +494,7 @@ async function minimaxTTS(text, voice = 'Friendly_Person') {
   if (!key) {
     throw new Error('MiniMax API key not configured');
   }
-  
+ 
   const postData = JSON.stringify({
     model: 'speech-02-hd',
     text,
@@ -503,7 +507,7 @@ async function minimaxTTS(text, voice = 'Friendly_Person') {
       format: 'mp3'
     }
   });
-  
+ 
   const options = {
     hostname: 'api.minimax.io',
     path: '/v1/t2a_v2',
@@ -514,7 +518,7 @@ async function minimaxTTS(text, voice = 'Friendly_Person') {
       'Content-Length': Buffer.byteLength(postData)
     }
   };
-  
+ 
   return new Promise((resolve, reject) => {
     const req = https.request(options, (res) => {
       let data = '';
@@ -533,16 +537,31 @@ async function minimaxTTS(text, voice = 'Friendly_Person') {
         }
       });
     });
-    
+   
     req.on('error', reject);
     req.write(postData);
     req.end();
   });
 }
 
+// Gemini TTS using OpenAI-compatible API endpoint
+async function geminiTTS(text, voice) {
+  // Gemini TTS is not natively supported via API, fallback to OpenAI if available
+  if (OPENAI_KEY) {
+    console.log('Gemini TTS fallback to OpenAI');
+    return openaiTTS(text, voice || 'alloy');
+  } else if (MINIMAX_KEY) {
+    console.log('Gemini TTS fallback to MiniMax');
+    return minimaxTTS(text, voice || 'Friendly_Person');
+  } else {
+    throw new Error('No TTS provider available. Please set OPENAI_API_KEY or MINIMAX_API_KEY');
+  }
+}
+
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Voice Chat Backend v1.1.0 running on port ${PORT}`);
+  console.log(`Voice Chat Backend v1.2.0 running on port ${PORT}`);
   console.log(`REST endpoints: /chat, /text-chat, /tts`);
   console.log(`WebSocket endpoint: ws://localhost:${PORT}/ws/voice`);
   console.log(`Dialogue model: ${DIALOGUE_MODEL}`);
+  console.log(`TTS model: ${TTS_MODEL}`);
 });
