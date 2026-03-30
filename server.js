@@ -134,9 +134,11 @@ wss.on('connection', (ws) => {
      
       if (msg.type === 'audio') {
         const audioBase64 = msg.data;
+        const language = msg.language || 'zh-TW'; // Default to Traditional Chinese
        
         // Transcribe
-        const transcription = await transcribe(audioBase64, 'openai');
+        console.log('WS Transcribing with language:', language);
+        const transcription = await transcribe(audioBase64, 'openai', language);
         console.log('WS Transcription:', transcription);
        
         if (!transcription || transcription.trim() === '') {
@@ -194,7 +196,7 @@ wss.on('connection', (ws) => {
 
 // ============ Helper Functions ============
 
-async function transcribe(audioBase64, provider) {
+async function transcribe(audioBase64, provider, language = 'zh-TW') {
   // If it's already text (user sent text instead of audio)
   if (typeof audioBase64 === 'string' && !audioBase64.includes('=') && audioBase64.length < 1000) {
     return audioBase64;
@@ -212,6 +214,7 @@ async function transcribe(audioBase64, provider) {
     const CRLF = '\r\n';
     const parts = [
       Buffer.from(`--${boundary}${CRLF}Content-Disposition: form-data; name="model"${CRLF}${CRLF}whisper-1`),
+      Buffer.from(`${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="language"${CRLF}${CRLF}${language}`),
       Buffer.from(`${CRLF}--${boundary}${CRLF}Content-Disposition: form-data; name="file"; filename="audio.webm"${CRLF}Content-Type: audio/webm${CRLF}${CRLF}`),
       audioBuffer,
       Buffer.from(`${CRLF}--${boundary}--${CRLF}`)
