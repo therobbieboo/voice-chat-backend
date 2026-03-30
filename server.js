@@ -561,9 +561,53 @@ async function geminiTTS(text, voice) {
   }
 }
 
+// OpenAI Realtime API - Session endpoint for ephemeral key generation
+// This allows frontend to connect directly to OpenAI Realtime API via WebRTC
+app.post('/session', async (req, res) => {
+  try {
+    const { model = 'gpt-4o-realtime-preview-2025-06-03', voice = 'alloy' } = req.body || {};
+    
+    console.log('[/session] Creating OpenAI Realtime session, model:', model, 'voice:', voice);
+    
+    // Create ephemeral key via OpenAI REST API
+    const response = await fetch('https://api.openai.com/v1/realtime/sessions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${OPENAI_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: model,
+        voice: voice,
+      }),
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[/session] OpenAI API error:', response.status, errorText);
+      return res.status(response.status).json({ error: errorText });
+    }
+    
+    const sessionData = await response.json();
+    console.log('[/session] Session created successfully');
+    
+    res.json({
+      client_secret: {
+        value: sessionData.client_secret.value,
+        expires_at: sessionData.client_secret.expires_at,
+      },
+      model: sessionData.model,
+      voice: voice,
+    });
+  } catch (error) {
+    console.error('[/session] Error:', error.message);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 server.listen(PORT, '0.0.0.0', () => {
-  console.log(`Voice Chat Backend v1.2.0 running on port ${PORT}`);
-  console.log(`REST endpoints: /chat, /text-chat, /tts`);
+  console.log(`Voice Chat Backend v1.3.0 running on port ${PORT}`);
+  console.log(`REST endpoints: /chat, /text-chat, /tts, /session`);
   console.log(`WebSocket endpoint: ws://localhost:${PORT}/ws/voice`);
   console.log(`Dialogue model: ${DIALOGUE_MODEL}`);
   console.log(`TTS model: ${TTS_MODEL}`);
